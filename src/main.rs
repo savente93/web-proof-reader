@@ -24,10 +24,9 @@ pub enum FileType<'a> {
 
 #[derive(Debug)]
 pub enum CheckError {
-    ContentError,
-    BrokenLink,
-    EmptyBody,
-    InvalidHtml,
+    ForbiddenFile(String),
+    ContentError(String, String),
+    BrokenLink(String, String),
     Io(io::Error),
 }
 
@@ -39,7 +38,12 @@ impl From<io::Error> for CheckError {
 
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CheckError")
+        match self{
+            CheckError::BrokenLink(link,file) => write!(f,"Found broken link: {}, in file {}",&link,&file),
+            CheckError::ContentError(err,file) => write!(f,"Found content error: {}, in file {}",&err,&file),
+            CheckError::ForbiddenFile(path) => write!(f,"Found forbidden file: {}", path),
+            CheckError::Io(err) => write!(f,"{}",err), 
+        }
     }
 }
 
@@ -67,9 +71,13 @@ pub fn typify(path: Option<&Path>) -> FileType {
 
 fn main() -> Result<(), CheckError> {
     //TODO: make this loop parallel/async
-    for entry in WalkDir::new(&TEST_SITE).into_iter().filter_map(|e| e.ok()) {
-        check_file(typify(Some(entry.path())))?;
+    let (_, errors) : (Vec<_>,Vec<_>) = WalkDir::new(&TEST_SITE).into_iter().filter_map(|e| e.ok()).map(|e| check_file(typify(Some(e.path())))).partition(Result::is_ok);
+    for err in errors{
+        match err {
+            Ok(_) => (),
+            Err(e) => println!("{}",e),
+        }
+        
     }
-
     Ok(())
 }
