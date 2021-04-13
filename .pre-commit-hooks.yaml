@@ -1,0 +1,7 @@
+id: web-check
+name: Web Proof Reader
+entry: proof-reader 
+language: rust
+pass_filenames: false
+args: 
+  - target_dir
