@@ -70,7 +70,7 @@ pub fn typify(path: Option<&Path>) -> FileType {
 }
 
 fn main() -> Result<(), String> {
-    //TODO: make this loop parallel/async
+    //TODO: make this loop parallel
     let (_, errors) : (Vec<_>,Vec<_>) = WalkDir::new(&TEST_SITE).into_iter().filter_map(|e| e.ok()).map(|e| check_file(typify(Some(e.path())))).partition(Result::is_ok);
     for err in &errors{
         match err {
