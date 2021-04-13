@@ -1,53 +1,25 @@
+#[macro_use]
+extern crate lazy_static;
 extern crate clap;
+extern crate regex;
 extern crate scraper;
 extern crate selectors;
 extern crate walkdir;
-#[macro_use]
-extern crate lazy_static;
-extern crate regex;
 
+mod error;
 mod html;
 
-use std::error;
 use std::ffi::OsString;
-use std::fmt;
-use std::io;
 use std::path::Path;
 use walkdir::WalkDir;
 
+use crate::error::CheckError;
 static TEST_SITE: &str = "public/";
 
 pub enum FileType<'a> {
     Html(&'a Path),
     Ignored,
 }
-
-#[derive(Debug)]
-pub enum CheckError {
-    ForbiddenFile(String),
-    ContentError(String, String),
-    BrokenLink(String, String),
-    Io(io::Error),
-}
-
-impl From<io::Error> for CheckError {
-    fn from(err: io::Error) -> CheckError {
-        CheckError::Io(err)
-    }
-}
-
-impl fmt::Display for CheckError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self{
-            CheckError::BrokenLink(link,file) => write!(f,"Found broken link: {}, in file {}",&link,&file),
-            CheckError::ContentError(err,file) => write!(f,"Found content error: {}, in file {}",&err,&file),
-            CheckError::ForbiddenFile(path) => write!(f,"Found forbidden file: {}", path),
-            CheckError::Io(err) => write!(f,"{}",err), 
-        }
-    }
-}
-
-impl error::Error for CheckError {}
 
 pub fn check_file(file: FileType) -> Result<(), CheckError> {
     match file {
@@ -71,15 +43,18 @@ pub fn typify(path: Option<&Path>) -> FileType {
 
 fn main() -> Result<(), String> {
     //TODO: make this loop parallel
-    let (_, errors) : (Vec<_>,Vec<_>) = WalkDir::new(&TEST_SITE).into_iter().filter_map(|e| e.ok()).map(|e| check_file(typify(Some(e.path())))).partition(Result::is_ok);
-    for err in &errors{
+    let (_, errors): (Vec<_>, Vec<_>) = WalkDir::new(&TEST_SITE)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .map(|e| check_file(typify(Some(e.path()))))
+        .partition(Result::is_ok);
+    for err in &errors {
         match err {
             Ok(_) => (),
-            Err(e) => println!("{}",e),
+            Err(e) => println!("{}", e),
         }
-        
     }
-    if errors.is_empty(){
+    if errors.is_empty() {
         Ok(())
     } else {
         Err("Errors were found".to_string())
