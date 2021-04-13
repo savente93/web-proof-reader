@@ -13,5 +13,5 @@ pub fn build_cli() -> App<'static, 'static> {
                 .default_value("./public")
                 .help("Root of the website to check")
         )
-        
 }
+

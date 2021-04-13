@@ -1,10 +1,11 @@
-use crate::scraper::{ElementRef, Html, Selector};
-use crate::selectors::attr::CaseSensitivity;
+use scraper::{ElementRef, Html, Selector};
+use selectors::attr::CaseSensitivity;
 use std::fs::read_to_string;
 use std::path::Path;
 
 use crate::CheckError;
 
+use lazy_static::*;
 use regex::Regex;
 use std::collections::HashSet;
 type CheckResult = Result<(), CheckError>;
@@ -68,7 +69,6 @@ fn check_for_invalid_publish_dates(path: &Path, document: &Html) -> CheckResult 
     for div in document.select(&div_selector) {
         found_tag = true;
         let div_text = &div.text().collect::<Vec<_>>().join("");
-        println!("{}",&div_text);
         if let Some(publish_date) = extract_iso_date(div_text) {
             if publish_date == "0000-01-01" {
                 return Err(CheckError::ContentError {
@@ -137,8 +137,8 @@ fn check_forbidden_tags(path: &Path, document: &Html) -> CheckResult {
 mod tests {
     use super::*;
     use std::fs::{create_dir, File};
-    use tempfile::TempDir;
     use std::io::prelude::*;
+    use tempfile::TempDir;
 
     fn setup_test_wip_page() -> Html {
         let wip_page_contents = r#"
@@ -357,10 +357,11 @@ mod tests {
         let test_dir = TempDir::new().expect("could not create temp dir");
         let page_path = test_dir.path().join("page.html");
         let mut f = File::create(&page_path).expect("failed to create file");
-        f.write_all(test_doc.root_element().html().as_bytes()).expect("failed to write file contents");
+        f.write_all(test_doc.root_element().html().as_bytes())
+            .expect("failed to write file contents");
 
         let res = check_html_file(&page_path);
-        assert!(res.is_ok(), "{:?}",res);
+        assert!(res.is_ok(), "{:?}", res);
         Ok(())
     }
 }
