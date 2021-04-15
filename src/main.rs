@@ -13,10 +13,7 @@ use crate::cli::*;
  
 use glob::Pattern;
 
-// static TEST_SITE: &str = "public/";
-
-
-// TODO configure .pre-commit-config.yaml
+// TODO configure .pre-commit-config.yaml to make it a real pre-commit
 fn main() -> Result<(), String> {
 
     let matches = build_cli().get_matches();
@@ -38,7 +35,6 @@ fn main() -> Result<(), String> {
         .map(|e| check_file(e.path(), exclude.as_ref()))
         .partition(Result::is_ok);
 
-    // TODO produce prettier output
     for err in &errors {
         match err {
             Ok(_) => (),
@@ -50,5 +46,4 @@ fn main() -> Result<(), String> {
     } else {
         Err("Checks failed!".to_string())
     }
-    //TODO figure out post commit to upload build? 
 }

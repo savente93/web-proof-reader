@@ -11,16 +11,12 @@ use std::collections::HashSet;
 type CheckResult = Result<(), CheckError>;
 
 pub fn check_html_file(path: &Path) -> CheckResult {
-    
     check_for_forbidden_files(path)?;
 
     let contents = read_to_string(path)?;
     let html = Html::parse_document(&contents);
 
     check_forbidden_tags(path, &html)?;
-    //TODO figure out which files should or should not get this check
-    //TODO add HTML validator/linter
-    //TODO figure out configurability somehow
     check_for_invalid_publish_dates(path, &html)?;
     Ok(())
 }
@@ -68,34 +64,18 @@ fn check_for_forbidden_files(path: &Path) -> CheckResult {
 
 fn check_for_invalid_publish_dates(path: &Path, document: &Html) -> CheckResult {
     let div_selector = Selector::parse("div.date").unwrap();
-    let mut found_tag = false;
 
     for div in document.select(&div_selector) {
-        found_tag = true;
         let div_text = &div.text().collect::<Vec<_>>().join("");
         if let Some(publish_date) = extract_iso_date(div_text) {
             if publish_date == "0000-01-01" {
                 return Err(CheckError::ContentError {
                     path: path.display().to_string(),
                     offender: publish_date,
-                    description: "Forbidden publish date: ".to_string(),
+                    description: "Forbidden publish date".to_string(),
                 });
             }
-        } else {
-            return Err(CheckError::ContentError {
-                path: path.display().to_string(),
-                offender: "".to_string(),
-                description: "Missing publish date".to_string(),
-            });
-        }
-    }
-
-    if !found_tag {
-        return Err(CheckError::ContentError {
-            path: path.display().to_string(),
-            offender: "".to_string(),
-            description: "Missing publish date".to_string(),
-        });
+        } 
     }
     Ok(())
 }
@@ -127,7 +107,7 @@ fn check_forbidden_tags(path: &Path, document: &Html) -> CheckResult {
                     return Err(CheckError::ContentError {
                         path: path.display().to_string(),
                         offender: tag_name,
-                        description: "Forbidden tag: ".to_string(),
+                        description: "Forbidden tag".to_string(),
                     });
                 }
             }
@@ -158,65 +138,6 @@ mod tests {
                 <header>
                     <h2>A work in progress</h2>
                     <div class="date">Published: 0000-01-01</div>
-                    <hr>
-                </header>
-                <section>
-                </section>
-                <nav>
-                </nav>
-                <div class="tags"><a href="/tags/wip">#WIP</a>, 
-                </article>
-            </main>
-        </body>
-        </html>
-        "#;
-
-        Html::parse_document(wip_page_contents)
-    }
-
-    fn setup_test_page_without_pub_date() -> Html {
-        let wip_page_contents = r#"
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <title>title</title>
-        </head>
-        <body>
-            <main>
-                <article>
-                <header>
-                    <h2>A work in progress</h2>
-                    <div class="date">Published:</div>
-                    <hr>
-                </header>
-                <section>
-                </section>
-                <nav>
-                </nav>
-                <div class="tags"><a href="/tags/wip">#WIP</a>, 
-                </article>
-            </main>
-        </body>
-        </html>
-        "#;
-
-        Html::parse_document(wip_page_contents)
-    }
-
-    fn setup_test_page_without_pub_date_tag() -> Html {
-        let wip_page_contents = r#"
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <title>title</title>
-        </head>
-        <body>
-            <main>
-                <article>
-                <header>
-                    <h2>A work in progress</h2>
                     <hr>
                 </header>
                 <section>
@@ -275,40 +196,6 @@ mod tests {
             path: "wip.html".to_string(),
             offender: "0000-01-01".to_string(),
             description: "Forbidden publish date".to_string(),
-        });
-
-        assert_eq!(res, expected_err);
-        Ok(())
-    }
-
-    #[test]
-    fn test_discovers_missing_pub_date() -> Result<(), String> {
-        let test_doc = setup_test_page_without_pub_date();
-        let test_path = Path::new("wip.html");
-
-        let res = check_for_invalid_publish_dates(&test_path, &test_doc);
-
-        let expected_err = Err(CheckError::ContentError {
-            path: "wip.html".to_string(),
-            offender: "".to_string(),
-            description: "Missing publish date".to_string(),
-        });
-
-        assert_eq!(res, expected_err);
-        Ok(())
-    }
-
-    #[test]
-    fn test_discovers_missing_pub_date_tag() -> Result<(), String> {
-        let test_doc = setup_test_page_without_pub_date_tag();
-        let test_path = Path::new("wip.html");
-
-        let res = check_for_invalid_publish_dates(&test_path, &test_doc);
-
-        let expected_err = Err(CheckError::ContentError {
-            path: "wip.html".to_string(),
-            offender: "".to_string(),
-            description: "Missing publish date".to_string(),
         });
 
         assert_eq!(res, expected_err);

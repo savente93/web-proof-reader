@@ -12,10 +12,6 @@ pub enum CheckError {
         offender: String,
         description: String,
     },
-    BrokenLink {
-        path: String,
-        link: String,
-    },
     Io(io::Error),
 }
 
@@ -28,9 +24,6 @@ impl From<io::Error> for CheckError {
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            CheckError::BrokenLink { path, link } => {
-                write!(f, "Found broken link: {}, in file {}", &link, &path)
-            }
             CheckError::ContentError {
                 path,
                 offender,
@@ -67,9 +60,6 @@ impl PartialEq for CheckError {
                     description: deso,
                 },
             ) => ps == po && offs == offo && dess == deso,
-            (BrokenLink { path: ps, link: ls }, BrokenLink { path: po, link: lo }) => {
-                po == ps && ls == lo
-            }
             (ForbiddenFile { path: ps }, ForbiddenFile { path: po }) => ps == po,
             (Io(_), Io(_)) => true, //all io erros are equal for our purposes
             _ => false,
