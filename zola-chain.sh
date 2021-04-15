@@ -1,0 +1,1 @@
+zola build && proof-reader

@@ -41,6 +41,7 @@ fn main() -> Result<(), String> {
             Err(e) => println!("{}", e),
         }
     }
+    
     if errors.is_empty() {
         Ok(())
     } else {

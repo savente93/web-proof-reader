@@ -3,3 +3,8 @@
   entry: proof-reader 
   language: rust
   pass_filenames: false
+- id: Zola
+  name: Build zola website and check it
+  entry: zola-chain.sh
+  language: bash
+  pass_filenames: false
