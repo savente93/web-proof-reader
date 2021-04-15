@@ -3,8 +3,9 @@
   entry: proof-reader 
   language: rust
   pass_filenames: false
-- id: Zola
+- id: zola
   name: Build zola website and check it
   entry: zola-chain.sh
-  language: bash
+  language: script
   pass_filenames: false
+  always_run: true

@@ -20,3 +20,4 @@ tempfile = "3.2.0"
 
 [[bin]]
 name = "proof-reader"
+path = "src/main.rs" 

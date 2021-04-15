@@ -13,7 +13,6 @@ use crate::cli::*;
  
 use glob::Pattern;
 
-// TODO configure .pre-commit-config.yaml to make it a real pre-commit
 fn main() -> Result<(), String> {
 
     let matches = build_cli().get_matches();
@@ -41,7 +40,7 @@ fn main() -> Result<(), String> {
             Err(e) => println!("{}", e),
         }
     }
-    
+
     if errors.is_empty() {
         Ok(())
     } else {
