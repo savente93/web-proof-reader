@@ -38,7 +38,7 @@ impl fmt::Display for CheckError {
             } => {
                 write!(
                     f,
-                    "Found content error: [{}:{}], in file {}",
+                    "Found content error: [{}{}], in file {}",
                     &description, &offender, &path
                 )
             }

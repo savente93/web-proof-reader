@@ -11,12 +11,16 @@ use std::collections::HashSet;
 type CheckResult = Result<(), CheckError>;
 
 pub fn check_html_file(path: &Path) -> CheckResult {
+    
     check_for_forbidden_files(path)?;
 
     let contents = read_to_string(path)?;
     let html = Html::parse_document(&contents);
 
     check_forbidden_tags(path, &html)?;
+    //TODO figure out which files should or should not get this check
+    //TODO add HTML validator/linter
+    //TODO figure out configurability somehow
     check_for_invalid_publish_dates(path, &html)?;
     Ok(())
 }
@@ -74,7 +78,7 @@ fn check_for_invalid_publish_dates(path: &Path, document: &Html) -> CheckResult 
                 return Err(CheckError::ContentError {
                     path: path.display().to_string(),
                     offender: publish_date,
-                    description: "Forbidden publish date".to_string(),
+                    description: "Forbidden publish date: ".to_string(),
                 });
             }
         } else {
@@ -123,7 +127,7 @@ fn check_forbidden_tags(path: &Path, document: &Html) -> CheckResult {
                     return Err(CheckError::ContentError {
                         path: path.display().to_string(),
                         offender: tag_name,
-                        description: "Forbidden tag".to_string(),
+                        description: "Forbidden tag: ".to_string(),
                     });
                 }
             }
