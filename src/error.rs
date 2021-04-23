@@ -12,6 +12,11 @@ pub enum CheckError {
         offender: String,
         description: String,
     },
+    AccessibilityError {
+        path: String,
+        offender: String,
+        description: String,
+    },
     Io(io::Error),
 }
 
@@ -25,6 +30,17 @@ impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             CheckError::ContentError {
+                path,
+                offender,
+                description,
+            } => {
+                write!(
+                    f,
+                    "Found content error: [{}{}], in file {}",
+                    &description, &offender, &path
+                )
+            }
+            CheckError::AccessibilityError {
                 path,
                 offender,
                 description,
@@ -55,6 +71,18 @@ impl PartialEq for CheckError {
                     description: dess,
                 },
                 ContentError {
+                    path: po,
+                    offender: offo,
+                    description: deso,
+                },
+            ) => ps == po && offs == offo && dess == deso,
+            (
+                AccessibilityError {
+                    path: ps,
+                    offender: offs,
+                    description: dess,
+                },
+                AccessibilityError {
                     path: po,
                     offender: offo,
                     description: deso,

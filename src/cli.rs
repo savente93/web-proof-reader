@@ -13,13 +13,13 @@ pub fn build_cli() -> App<'static, 'static> {
                 .takes_value(true)
                 .default_value("./public")
                 .help("Root of the website to check")
-                .required(true)
-        )        
+                .required(true),
+        )
         .arg(
             Arg::with_name("exclude")
-                .short("e") 
-                .long("exclude") 
+                .short("e")
+                .long("exclude")
                 .takes_value(true)
-                .help("Directory to exclude from search")
+                .help("Directory to exclude from search"),
         )
 }
