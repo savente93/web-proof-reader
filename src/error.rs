@@ -1,6 +1,7 @@
 use std::error;
 use std::fmt;
 use std::io;
+use colored::*;
 
 #[derive(Debug)]
 pub enum CheckError {
@@ -36,8 +37,8 @@ impl fmt::Display for CheckError {
             } => {
                 write!(
                     f,
-                    "Found content error: [{}{}], in file {}",
-                    &description, &offender, &path
+                    "{}: [{}{}], in file {}",
+                    &"Found content error".red(),&description, &offender, &path
                 )
             }
             CheckError::AccessibilityError {
@@ -47,11 +48,11 @@ impl fmt::Display for CheckError {
             } => {
                 write!(
                     f,
-                    "Found content error: [{}{}], in file {}",
-                    &description, &offender, &path
+                    "{}: [{}{}], in file {}",
+                    &"Found accessiblity error".red(),&description, &offender, &path
                 )
             }
-            CheckError::ForbiddenFile { path } => write!(f, "Found forbidden file: {}", path),
+            CheckError::ForbiddenFile { path } => write!(f, "{}: {}", &"Found forbidden file".red(),path),
             CheckError::Io(err) => write!(f, "{}", err),
         }
     }

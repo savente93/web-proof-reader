@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
+
 use crate::cli::*;
 use crate::dispatch::*;
 use crate::error::CheckError;
@@ -44,6 +45,6 @@ fn main() -> Result<(), String> {
     if errors.is_empty() {
         Ok(())
     } else {
-        Err("Checks failed!".to_string())
+        Err(format!("{} Checks failed!", errors.len()))
     }
 }

@@ -18,6 +18,7 @@ pub fn check_html_file(path: &Path) -> CheckResult {
 
     check_forbidden_tags(path, &html)?;
     check_for_invalid_publish_dates(path, &html)?;
+    
     check_img_tags_have_alts(path, &html)?;
     check_tags_dont_have_title_attr(path, &html)?;
     check_page_doesnt_disabe_zoom(path, &html)?;
@@ -112,13 +113,20 @@ fn check_tags_dont_have_title_attr(path: &Path, document: &Html) -> CheckResult 
     let tag_selector = Selector::parse("*").unwrap();
 
     for tag in document.select(&tag_selector) {
-        if tag.value().attr("title").is_some() {
-            return Err(CheckError::AccessibilityError {
+        match (tag.value().attr("title"),tag.value().attr("alt")) {
+            (Some(t),Some(alt)) => if t != alt {return Err(CheckError::AccessibilityError {
+                path: path.display().to_string(),
+                offender: tag.html(),
+                description: "Title and alt attributes should be equal".to_string(),
+            })},
+            (Some(_),None) => {return Err(CheckError::AccessibilityError {
                 path: path.display().to_string(),
                 offender: tag.html(),
                 description: "Tag in page has title attr".to_string(),
-            });
-        };
+            })}
+            _ => ()
+        }
+        
     }
     Ok(())
 }
@@ -438,20 +446,19 @@ mod tests {
                 <input autofocus><br><br>
                 <input type="radio" name="whatever" id="other" value="other"><br><br>
                 </form> 
-
-<figure>
-<img src="pic_trulli.jpg" alt="Trulli" style="width:100%">
-</figure> 
-<table>
-<tr>
-  <th>Month</th>
-  <th>Savings</th>
-</tr>
-<tr>
-  <td>January</td>
-  <td>$100</td>
-</tr>
-</table> 
+                <figure>
+                <img src="pic_trulli.jpg" alt="Trulli" style="width:100%">
+                </figure> 
+                <table>
+                <tr>
+                <th>Month</th>
+                <th>Savings</th>
+                </tr>
+                <tr>
+                <td>January</td>
+                <td>$100</td>
+                </tr>
+                </table> 
                 <audio autoplay></audio> 
                 </section>
                 <nav>
