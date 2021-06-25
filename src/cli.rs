@@ -15,11 +15,19 @@ pub fn build_cli() -> App<'static, 'static> {
                 .help("Root of the website to check")
                 .required(true),
         )
+        // .arg(
+        //     Arg::with_name("exclude")
+        //         .short("e")
+        //         .long("exclude")
+        //         .takes_value(true)
+        //         .help("Directory to exclude from search"),
+        // )
         .arg(
-            Arg::with_name("exclude")
-                .short("e")
-                .long("exclude")
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
                 .takes_value(true)
-                .help("Directory to exclude from search"),
+                .help("Config file")
+                .default_value("./config.toml"),
         )
 }

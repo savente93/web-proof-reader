@@ -1,38 +1,35 @@
 mod cli;
+mod config;
+mod date;
 mod dispatch;
 mod error;
 mod html;
 
 use rayon::prelude::*;
-use std::path::PathBuf;
 use walkdir::WalkDir;
 
-
 use crate::cli::*;
+use crate::config::{build_config, ReaderConfig};
 use crate::dispatch::*;
 use crate::error::CheckError;
 
-use glob::Pattern;
+use std::path::Path;
 
 fn main() -> Result<(), String> {
     let matches = build_cli().get_matches();
 
-    let root_dir = match matches.value_of("root").unwrap() {
-        path => PathBuf::from(path)
-            .canonicalize()
-            .unwrap_or_else(|_| panic!("Cannot find root directory: {}", path)),
-    };
+    let conf: ReaderConfig = matches
+        .value_of("config")
+        .map_or_else(ReaderConfig::default, |p| {
+            build_config(Some(Path::new(p))).unwrap()
+        });
 
-    let exclude = matches
-        .value_of("exclude")
-        .map_or_else(|| None, |e| Pattern::new(e).ok());
-
-    let (_, errors): (Vec<_>, Vec<_>) = WalkDir::new(&root_dir)
+    let (_, errors): (Vec<_>, Vec<_>) = WalkDir::new(&conf.root_dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .collect::<Vec<_>>()
         .into_par_iter()
-        .map(|e| check_file(e.path(), exclude.as_ref()))
+        .map(|e| check_file(e.path(), &conf))
         .partition(Result::is_ok);
 
     for err in &errors {

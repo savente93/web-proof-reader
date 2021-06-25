@@ -1,24 +1,36 @@
+use scraper::html::Select;
 use scraper::{ElementRef, Html, Selector};
 use selectors::attr::CaseSensitivity;
+use std::collections::HashSet;
 use std::fs::read_to_string;
 use std::path::Path;
-use std::collections::HashSet;
 
 use crate::CheckError;
+use crate::ReaderConfig;
 
 use lazy_static::*;
 use regex::Regex;
 type CheckResult = Result<(), CheckError>;
 
-pub fn check_html_file(path: &Path) -> CheckResult {
+pub trait Check {
+    fn select(&self, document: &Html) -> Select;
+    fn check(&self, selection: &Select) -> CheckResult;
+}
+
+pub fn check_html_file(path: &Path, conf: &ReaderConfig) -> CheckResult {
     check_for_forbidden_files(path)?;
 
     let contents = read_to_string(path)?;
     let html = Html::parse_document(&contents);
 
     check_forbidden_tags(path, &html)?;
-    check_for_invalid_publish_dates(path, &html)?;
-    
+    match &conf.pub_date_selector {
+        None => Ok(()),
+        Some(selector) => {
+            check_for_invalid_publish_dates(path, &html, selector, &conf.forbidden_dates)
+        }
+    }?;
+
     check_img_tags_have_alts(path, &html)?;
     check_tags_dont_have_title_attr(path, &html)?;
     check_page_doesnt_disabe_zoom(path, &html)?;
@@ -37,10 +49,10 @@ pub fn check_html_file(path: &Path) -> CheckResult {
 
 fn extract_tag_name_from_url(url: &str) -> Option<String> {
     lazy_static! {
-        static ref RE_TAGS: Regex = Regex::new(&"tags/([-a-zA-Z0-9]+)").unwrap();
+        static ref RE_TAGS: Regex = Regex::new("tags/([-a-zA-Z0-9]+)").unwrap();
     }
     RE_TAGS
-        .captures_iter(&url)
+        .captures_iter(url)
         .next()?
         .get(1)
         .map(|m| m.as_str().to_string())
@@ -51,7 +63,7 @@ fn extract_iso_date(text: &str) -> Option<String> {
         static ref RE_DATE: Regex = Regex::new(r"(\d{4}-\d{2}-\d{2})").unwrap();
     }
     RE_DATE
-        .captures_iter(&text)
+        .captures_iter(text)
         .next()?
         .get(1)
         .map(|m| m.as_str().to_string())
@@ -76,13 +88,18 @@ fn check_for_forbidden_files(path: &Path) -> CheckResult {
     Ok(())
 }
 
-fn check_for_invalid_publish_dates(path: &Path, document: &Html) -> CheckResult {
-    let div_selector = Selector::parse("div.date").unwrap();
+fn check_for_invalid_publish_dates(
+    path: &Path,
+    document: &Html,
+    pub_date_selector: &str,
+    forbidden_dates: &[String],
+) -> CheckResult {
+    let div_selector = Selector::parse(pub_date_selector).unwrap();
 
     for div in document.select(&div_selector) {
         let div_text = &div.text().collect::<Vec<_>>().join("");
         if let Some(publish_date) = extract_iso_date(div_text) {
-            if publish_date == "0000-01-01" {
+            if forbidden_dates.contains(&publish_date) {
                 return Err(CheckError::ContentError {
                     path: path.display().to_string(),
                     offender: publish_date,
@@ -113,20 +130,25 @@ fn check_tags_dont_have_title_attr(path: &Path, document: &Html) -> CheckResult 
     let tag_selector = Selector::parse("*").unwrap();
 
     for tag in document.select(&tag_selector) {
-        match (tag.value().attr("title"),tag.value().attr("alt")) {
-            (Some(t),Some(alt)) => if t != alt {return Err(CheckError::AccessibilityError {
-                path: path.display().to_string(),
-                offender: tag.html(),
-                description: "Title and alt attributes should be equal".to_string(),
-            })},
-            (Some(_),None) => {return Err(CheckError::AccessibilityError {
-                path: path.display().to_string(),
-                offender: tag.html(),
-                description: "Tag in page has title attr".to_string(),
-            })}
-            _ => ()
+        match (tag.value().attr("title"), tag.value().attr("alt")) {
+            (Some(t), Some(alt)) => {
+                if t != alt {
+                    return Err(CheckError::AccessibilityError {
+                        path: path.display().to_string(),
+                        offender: tag.html(),
+                        description: "Title and alt attributes should be equal".to_string(),
+                    });
+                }
+            }
+            (Some(_), None) => {
+                return Err(CheckError::AccessibilityError {
+                    path: path.display().to_string(),
+                    offender: tag.html(),
+                    description: "Tag in page has title attr".to_string(),
+                })
+            }
+            _ => (),
         }
-        
     }
     Ok(())
 }
@@ -140,14 +162,15 @@ fn check_page_doesnt_disabe_zoom(path: &Path, document: &Html) -> CheckResult {
     for tag in document.select(&meta_selector) {
         match tag.value().attr("content") {
             None => (),
-            Some(c) => if ZOOM_RE.is_match(c) {
-                return Err(CheckError::AccessibilityError {
-                    path: path.display().to_string(),
-                    offender: "".to_string(),
-                    description: "Page disables zoom".to_string(),
-                })
-            } else {
-                ()
+            Some(c) => {
+                if ZOOM_RE.is_match(c) {
+                    return Err(CheckError::AccessibilityError {
+                        path: path.display().to_string(),
+                        offender: "".to_string(),
+                        description: "Page disables zoom".to_string(),
+                    });
+                } else {
+                }
             }
         };
     }
@@ -252,7 +275,7 @@ fn check_page_doesnt_have_captionless_table(path: &Path, document: &Html) -> Che
     let caption_selector = Selector::parse("caption").unwrap();
 
     for table in document.select(&table_selector) {
-        if table.select(&caption_selector).next().is_none(){
+        if table.select(&caption_selector).next().is_none() {
             return Err(CheckError::AccessibilityError {
                 path: path.display().to_string(),
                 offender: "".to_string(),
@@ -266,7 +289,7 @@ fn check_page_doesnt_have_captionless_figure(path: &Path, document: &Html) -> Ch
     let fig_selector = Selector::parse("figure").unwrap();
     let figcap_selector = Selector::parse("figcaption").unwrap();
     for fig in document.select(&fig_selector) {
-        if fig.select(&figcap_selector).next().is_none(){
+        if fig.select(&figcap_selector).next().is_none() {
             return Err(CheckError::AccessibilityError {
                 path: path.display().to_string(),
                 offender: "".to_string(),
@@ -282,15 +305,20 @@ fn check_page_doesnt_have_labelless_form_elements(path: &Path, document: &Html) 
     let label_selector = Selector::parse("label").unwrap();
 
     for form in document.select(&form_selector) {
-        
-        let input_ids = form.select(&input_selector).filter_map(|input| input.value().id()).collect::<HashSet<_>>();
-        let label_ids = form.select(&label_selector).filter_map(|input| input.value().attr("for")).collect::<HashSet<_>>();
+        let input_ids = form
+            .select(&input_selector)
+            .filter_map(|input| input.value().id())
+            .collect::<HashSet<_>>();
+        let label_ids = form
+            .select(&label_selector)
+            .filter_map(|input| input.value().attr("for"))
+            .collect::<HashSet<_>>();
 
-        for id in input_ids{
-            if !label_ids.contains(id){
+        for id in input_ids {
+            if !label_ids.contains(id) {
                 return Err(CheckError::AccessibilityError {
                     path: path.display().to_string(),
-                    offender: format!("id=\"{}\"",id),
+                    offender: format!("id=\"{}\"", id),
                     description: "Form element without label attr".to_string(),
                 });
             }
@@ -334,7 +362,7 @@ fn check_forbidden_tags(path: &Path, document: &Html) -> CheckResult {
             })
         {
             if let Some(url) = elt.attr("href") {
-                let tag_name = extract_tag_name_from_url(&url).unwrap_or_else(|| "".to_string());
+                let tag_name = extract_tag_name_from_url(url).unwrap_or_else(|| "".to_string());
 
                 if forbidden_tags.contains(&tag_name) {
                     return Err(CheckError::ContentError {
@@ -355,7 +383,27 @@ mod tests {
     use super::*;
     use std::fs::{create_dir, File};
     use std::io::prelude::*;
+    use std::path::PathBuf;
     use tempfile::TempDir;
+
+    fn setup_test_config() -> ReaderConfig {
+        ReaderConfig {
+            root_dir: PathBuf::from("./public"),
+            excluded_file_glob: None,
+            forbidden_tags: vec!["WIP".to_string()],
+            forbidden_folders: vec![
+                "unpublished".to_string(),
+                "publish-queue".to_string(),
+                "editing-queue".to_string(),
+            ],
+            forbidden_dates: vec![
+                "0000-01-01".to_string(),
+                "<1950-01-01".to_string(),
+                ">today".to_string(),
+            ],
+            pub_date_selector: Some("div.date".to_string()),
+        }
+    }
 
     fn setup_test_wip_page() -> Html {
         let wip_page_contents = r#"
@@ -478,7 +526,14 @@ mod tests {
         let test_doc = setup_test_wip_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_for_invalid_publish_dates(&test_path, &test_doc);
+        let conf = setup_test_config();
+
+        let res = check_for_invalid_publish_dates(
+            test_path,
+            &test_doc,
+            &conf.pub_date_selector.unwrap(),
+            &conf.forbidden_dates,
+        );
 
         let expected_err = Err(CheckError::ContentError {
             path: "wip.html".to_string(),
@@ -495,7 +550,7 @@ mod tests {
         let test_doc = setup_test_wip_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_forbidden_tags(&test_path, &test_doc);
+        let res = check_forbidden_tags(test_path, &test_doc);
 
         let expected_err = Err(CheckError::ContentError {
             path: "wip.html".to_string(),
@@ -539,7 +594,9 @@ mod tests {
         f.write_all(test_doc.root_element().html().as_bytes())
             .expect("failed to write file contents");
 
-        let res = check_html_file(&page_path);
+        let conf = setup_test_config();
+
+        let res = check_html_file(&page_path, &conf);
         assert!(res.is_ok(), "{:?}", res);
         Ok(())
     }
@@ -549,7 +606,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_img_tags_have_alts(&test_path, &test_doc);
+        let res = check_img_tags_have_alts(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -566,7 +623,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_tags_dont_have_title_attr(&test_path, &test_doc);
+        let res = check_tags_dont_have_title_attr(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -583,7 +640,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_disabe_zoom(&test_path, &test_doc);
+        let res = check_page_doesnt_disabe_zoom(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -600,7 +657,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_has_title(&test_path, &test_doc);
+        let res = check_page_has_title(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -617,7 +674,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_has_lang_attr(&test_path, &test_doc);
+        let res = check_page_has_lang_attr(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -634,7 +691,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_positive_tabindex(&test_path, &test_doc);
+        let res = check_page_doesnt_have_positive_tabindex(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -651,7 +708,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_autofocus(&test_path, &test_doc);
+        let res = check_page_doesnt_have_autofocus(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -668,7 +725,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_multiple_h1_elements(&test_path, &test_doc);
+        let res = check_page_doesnt_have_multiple_h1_elements(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -685,7 +742,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_hrefless_link(&test_path, &test_doc);
+        let res = check_page_doesnt_have_hrefless_link(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -702,7 +759,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_captionless_table(&test_path, &test_doc);
+        let res = check_page_doesnt_have_captionless_table(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -719,7 +776,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_captionless_figure(&test_path, &test_doc);
+        let res = check_page_doesnt_have_captionless_figure(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -736,7 +793,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_labelless_form_elements(&test_path, &test_doc);
+        let res = check_page_doesnt_have_labelless_form_elements(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
@@ -753,7 +810,7 @@ mod tests {
         let test_doc = setup_wrong_a11y_page();
         let test_path = Path::new("wip.html");
 
-        let res = check_page_doesnt_have_autoplay_media(&test_path, &test_doc);
+        let res = check_page_doesnt_have_autoplay_media(test_path, &test_doc);
 
         let expected_err = Err(CheckError::AccessibilityError {
             path: "wip.html".to_string(),
