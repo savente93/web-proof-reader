@@ -1,0 +1,17 @@
+forbidden_folders = [
+    "unpublished",
+    "publish-queue",
+    "editing-queue"
+]
+
+forbidden_tags = [
+    "WIP"
+]
+
+forbidden_dates = [
+    "0000-01-01",
+    "<1950-01-01",
+    ">today"
+]
+
+pub_date_selector = "div.tags"
